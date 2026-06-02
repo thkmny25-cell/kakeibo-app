@@ -2,14 +2,22 @@ import { useState, useCallback } from 'react';
 import type { ParsedReceipt } from '../types';
 
 interface Props {
+  onValidate: (parsed: ParsedReceipt) => string[];
   onParsed: (receipt: ParsedReceipt, imagePreview: string) => void;
 }
 
-export function ReceiptUploader({ onParsed }: Props) {
+interface PendingReceipt {
+  parsed: ParsedReceipt;
+  imageDataUrl: string;
+}
+
+export function ReceiptUploader({ onValidate, onParsed }: Props) {
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingReceipt | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
 
   const processFile = useCallback(
     async (file: File) => {
@@ -21,7 +29,6 @@ export function ReceiptUploader({ onParsed }: Props) {
       setError(null);
       setIsLoading(true);
 
-      // プレビュー生成
       const reader = new FileReader();
       reader.onload = (e) => setPreview(e.target?.result as string);
       reader.readAsDataURL(file);
@@ -42,12 +49,35 @@ export function ReceiptUploader({ onParsed }: Props) {
         r.readAsDataURL(file);
       });
 
-      onParsed(parsed, imageDataUrl);
-      setPreview(null);
-      setIsLoading(false);
+      const foundWarnings = onValidate(parsed);
+
+      if (foundWarnings.length > 0) {
+        // 警告がある場合は確認画面を表示
+        setWarnings(foundWarnings);
+        setPending({ parsed, imageDataUrl });
+        setPreview(null);
+        setIsLoading(false);
+      } else {
+        onParsed(parsed, imageDataUrl);
+        setPreview(null);
+        setIsLoading(false);
+      }
     },
-    [onParsed]
+    [onValidate, onParsed]
   );
+
+  const handleConfirm = useCallback(() => {
+    if (pending) {
+      onParsed(pending.parsed, pending.imageDataUrl);
+      setPending(null);
+      setWarnings([]);
+    }
+  }, [pending, onParsed]);
+
+  const handleCancel = useCallback(() => {
+    setPending(null);
+    setWarnings([]);
+  }, []);
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
@@ -85,6 +115,39 @@ export function ReceiptUploader({ onParsed }: Props) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
       <h2 className="text-lg font-bold text-gray-800 mb-4">レシートを読み込む</h2>
+
+      {/* 警告確認パネル */}
+      {warnings.length > 0 && pending && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start gap-2 mb-3">
+            <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+            </svg>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-800 mb-1">以下の警告があります</p>
+              <ul className="text-sm text-amber-700 space-y-1">
+                {warnings.map((w, i) => (
+                  <li key={i}>・{w}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={handleCancel}
+              className="px-4 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="px-4 py-1.5 text-sm rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors font-medium"
+            >
+              このまま追加
+            </button>
+          </div>
+        </div>
+      )}
 
       <label
         className={`relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${

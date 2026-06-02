@@ -75,6 +75,31 @@ export function useExpenses() {
     {} as Record<string, number>
   );
 
+  const validateReceipt = useCallback((parsed: ParsedReceipt): string[] => {
+    const warnings: string[] = [];
+
+    // 負の金額チェック
+    const negativeItems = parsed.items.filter((i) => i.price < 0);
+    if (negativeItems.length > 0) {
+      const detail = negativeItems.map((i) => `${i.name}（¥${i.price.toLocaleString()}）`).join('、');
+      warnings.push(`負の金額の項目があります: ${detail}`);
+    }
+
+    // 同一日付・同一合計金額の重複チェック
+    const newTotal = parsed.items.reduce((s, i) => s + i.price, 0);
+    const duplicate = receipts.find((r) => {
+      const existingTotal = r.items.reduce((s, i) => s + i.price, 0);
+      return r.date === parsed.date && existingTotal === newTotal;
+    });
+    if (duplicate) {
+      warnings.push(
+        `同じ日付（${parsed.date}）・合計金額（¥${newTotal.toLocaleString()}）のレシートが既に登録されています（${duplicate.store || '店舗不明'}）`
+      );
+    }
+
+    return warnings;
+  }, [receipts]);
+
   return {
     receipts,
     allItems,
@@ -83,5 +108,6 @@ export function useExpenses() {
     addReceipt,
     deleteReceipt,
     deleteItem,
+    validateReceipt,
   };
 }

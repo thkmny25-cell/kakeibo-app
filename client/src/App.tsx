@@ -5,7 +5,7 @@ import { MonthlyBarChart } from './components/MonthlyBarChart';
 import { useExpenses } from './hooks/useExpenses';
 
 export default function App() {
-  const { receipts, categoryTotals, monthlyTotals, allItems, addReceipt, deleteReceipt, deleteItem } =
+  const { receipts, categoryTotals, monthlyTotals, allItems, addReceipt, deleteReceipt, deleteItem, validateReceipt } =
     useExpenses();
 
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -52,7 +52,7 @@ export default function App() {
         </div>
 
         {/* アップロードエリア */}
-        <ReceiptUploader onParsed={addReceipt} />
+        <ReceiptUploader onValidate={validateReceipt} onParsed={addReceipt} />
 
         {/* グラフエリア */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
